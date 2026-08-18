@@ -1,280 +1,147 @@
-name: Build Android APK
+name: Build APK
 
 on:
   push:
-    branches: [ main, master ]
-  workflow_dispatch:
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
 
-    - name: Setup Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
+      - uses: android-actions/setup-android@v3
 
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
+      - name: Setup project
+        run: |
+          mkdir -p StoicApp/app/src/main/java/com/stoic
+          mkdir -p StoicApp/app/src/main/assets/www
+          mkdir -p StoicApp/app/src/main/res/values
+          cp -r app/* StoicApp/app/src/main/assets/www/
+          rm -rf StoicApp/app/src/main/assets/www/node_modules
 
-    - name: Install SDK packages
-      run: |
-        yes | sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+      - name: Write settings.gradle
+        uses: geekyeggo/delete-artifact@v5
+        continue-on-error: true
+      - run: |
+          cat > StoicApp/settings.gradle << 'GRADLE'
+          pluginManagement {
+            repositories {
+              google()
+              mavenCentral()
+              gradlePluginPortal()
+            }
+          }
+          rootProject.name = "StoicApp"
+          include ':app'
+          GRADLE
 
-    - name: Create project structure
-      run: |
-        rm -rf android-project
-        mkdir -p android-project/app/src/main/java/com/stoicgenerator
-        mkdir -p android-project/app/src/main/res/layout
-        mkdir -p android-project/app/src/main/res/values
-        mkdir -p android-project/app/src/main/res/mipmap-hdpi
-        mkdir -p android-project/app/src/main/res/mipmap-xhdpi
-        mkdir -p android-project/app/src/main/res/mipmap-xxhdpi
-        mkdir -p android-project/app/src/main/assets/www
-        
-        # Copy web app
-        cp -r app/* android-project/app/src/main/assets/www/
-        rm -rf android-project/app/src/main/assets/www/node_modules
-        rm -f android-project/app/src/main/assets/www/package-lock.json
-        
-        echo "=== Web assets copied ==="
-        ls -la android-project/app/src/main/assets/www/
+      - run: |
+          cat > StoicApp/build.gradle << 'GRADLE'
+          plugins {
+            id 'com.android.application' version '8.2.0' apply false
+          }
+          GRADLE
 
-    - name: Create AndroidManifest.xml
-      run: |
-        cat > android-project/app/src/main/AndroidManifest.xml << 'XMLEOF'
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.stoicgenerator.app">
+      - run: |
+          echo "android.useAndroidX=true" > StoicApp/gradle.properties
 
-    <uses-permission android:name="android.permission.INTERNET" />
+      - run: |
+          cat > StoicApp/app/build.gradle << 'GRADLE'
+          plugins {
+            id 'com.android.application'
+          }
+          android {
+            namespace 'com.stoic.app'
+            compileSdk 34
+            defaultConfig {
+              applicationId "com.stoic.app"
+              minSdk 24
+              targetSdk 34
+              versionCode 1
+              versionName "1.0"
+            }
+            compileOptions {
+              sourceCompatibility JavaVersion.VERSION_17
+              targetCompatibility JavaVersion.VERSION_17
+            }
+          }
+          dependencies {
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+          }
+          GRADLE
 
-    <application
-        android:allowBackup="true"
-        android:label="Stoic Generator"
-        android:supportsRtl="true"
-        android:theme="@style/AppTheme">
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:screenOrientation="portrait">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-</manifest>
-XMLEOF
+      - run: |
+          cat > StoicApp/app/src/main/AndroidManifest.xml << 'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <application android:label="Stoic Generator" android:theme="@style/Theme.AppCompat.NoActionBar">
+              <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="portrait">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          XML
 
-    - name: Create MainActivity.java
-      run: |
-        cat > android-project/app/src/main/java/com/stoicgenerator/MainActivity.java << 'JAVAEOF'
-package com.stoicgenerator;
+      - run: |
+          cat > StoicApp/app/src/main/java/com/stoic/MainActivity.java << 'JAVA'
+          package com.stoic;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebSettings;
+          import android.webkit.WebViewClient;
+          import android.graphics.Color;
+          import android.os.Build;
+          import android.view.WindowManager;
+          import androidx.appcompat.app.AppCompatActivity;
+          public class MainActivity extends AppCompatActivity {
+            WebView w;
+            protected void onCreate(Bundle b) {
+              super.onCreate(b);
+              getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
+              if(Build.VERSION.SDK_INT>=21) getWindow().setStatusBarColor(Color.parseColor("#0a0a0f"));
+              w=new WebView(this);
+              setContentView(w);
+              WebSettings s=w.getSettings();
+              s.setJavaScriptEnabled(true);
+              s.setDomStorageEnabled(true);
+              w.setWebViewClient(new WebViewClient());
+              w.setBackgroundColor(Color.parseColor("#0a0a0f"));
+              w.loadUrl("file:///android_asset/www/index.html");
+            }
+            public void onBackPressed(){if(w!=null&&w.canGoBack())w.goBack();else super.onBackPressed();}
+          }
+          JAVA
 
-import android.os.Bundle;
-import android.webkit.WebView;
-import android.webkit.WebSettings;
-import android.webkit.WebViewClient;
-import android.webkit.WebChromeClient;
-import android.view.WindowManager;
-import android.graphics.Color;
-import android.os.Build;
-import androidx.appcompat.app.AppCompatActivity;
+      - run: |
+          cat > StoicApp/app/src/main/res/values/styles.xml << 'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+            <style name="Theme.AppCompat.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar"/>
+          </resources>
+          XML
 
-public class MainActivity extends AppCompatActivity {
-    private WebView webView;
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.4
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        
-        // Make fullscreen
-        getWindow().setFlags(
-            WindowManager.LayoutParams.FLAG_FULLSCREEN,
-            WindowManager.LayoutParams.FLAG_FULLSCREEN
-        );
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            getWindow().setStatusBarColor(Color.parseColor("#0a0a0f"));
-            getWindow().setNavigationBarColor(Color.parseColor("#0a0a0f"));
-        }
-        
-        // Create WebView directly
-        webView = new WebView(this);
-        setContentView(webView);
-        
-        // Configure
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setMediaPlaybackRequiresUserGesture(false);
-        
-        webView.setWebViewClient(new WebViewClient());
-        webView.setWebChromeClient(new WebChromeClient());
-        webView.setBackgroundColor(Color.parseColor("#0a0a0f"));
-        
-        webView.loadUrl("file:///android_asset/www/index.html");
-    }
+      - name: Build APK
+        run: cd StoicApp && gradle assembleDebug
 
-    @Override
-    public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
-        }
-    }
-}
-JAVAEOF
+      - name: Show APK
+        run: ls -lh StoicApp/app/build/outputs/apk/debug/
 
-    - name: Create res/values/styles.xml
-      run: |
-        cat > android-project/app/src/main/res/values/styles.xml << 'STYLESEOF'
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
-        <item name="android:windowFullscreen">true</item>
-        <item name="android:windowBackground">#0a0a0f</item>
-    </style>
-</resources>
-STYLESEOF
-
-    - name: Create res/values/colors.xml
-      run: |
-        cat > android-project/app/src/main/res/values/colors.xml << 'COLORSEOF'
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="black">#0a0a0f</color>
-    <color name="gold">#FFD700</color>
-</resources>
-COLORSEOF
-
-    - name: Create project build.gradle
-      run: |
-        cat > android-project/build.gradle << 'GRADLEEOF'
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:8.2.0'
-    }
-}
-
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
-GRADLEEOF
-
-    - name: Create app build.gradle
-      run: |
-        cat > android-project/app/build.gradle << 'APPEOF'
-plugins {
-    id 'com.android.application'
-}
-
-android {
-    namespace 'com.stoicgenerator.app'
-    compileSdk 34
-
-    defaultConfig {
-        applicationId "com.stoicgenerator.app"
-        minSdk 24
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
-    }
-
-    buildTypes {
-        release {
-            minifyEnabled false
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-}
-
-dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-}
-APPEOF
-
-    - name: Create gradle.properties
-      run: |
-        cat > android-project/gradle.properties << 'PROPEOF'
-android.useAndroidX=true
-android.nonTransitiveRClass=true
-PROPEOF
-
-    - name: Create settings.gradle
-      run: |
-        cat > android-project/settings.gradle << 'SETEOF'
-pluginManagement {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-}
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
-rootProject.name = "StoicGenerator"
-include ':app'
-SETEOF
-
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
-      with:
-        gradle-version: '8.4'
-
-    - name: Build APK
-      run: |
-        cd android-project
-        gradle assembleDebug
-
-    - name: Verify APK
-      run: |
-        echo "=== APK Size ==="
-        ls -lh android-project/app/build/outputs/apk/debug/app-debug.apk
-        echo ""
-        echo "=== APK Contents ==="
-        unzip -l android-project/app/build/outputs/apk/debug/app-debug.apk | head -20
-
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: StoicGenerator-APK
-        path: android-project/app/build/outputs/apk/debug/app-debug.apk
-        retention-days: 30
-
-    - name: Create PWA zip
-      run: |
-        cd app
-        zip -r ../StoicGenerator-PWA.zip . -x "node_modules/*"
-
-    - name: Upload PWA
-      uses: actions/upload-artifact@v4
-      with:
-        name: StoicGenerator-PWA
-        path: StoicGenerator-PWA.zip
-        retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StoicGenerator-APK
+          path: StoicApp/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
