@@ -23,11 +23,6 @@ jobs:
         cd app
         npm install
 
-    - name: Build PWA
-      run: |
-        cd app
-        npm run build || echo "Build complete - no build script"
-
     - name: Create distributable ZIP
       run: |
         cd app
@@ -50,91 +45,214 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Create Android project
+    - name: Install Android SDK packages
       run: |
-        # Create project directory
+        yes | sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+
+    - name: Create complete Android project
+      run: |
+        # Create project structure
         mkdir -p android-project/app/src/main/java/com/stoicgenerator
         mkdir -p android-project/app/src/main/res/values
+        mkdir -p android-project/app/src/main/res/drawable
         mkdir -p android-project/app/src/main/assets/www
         mkdir -p android-project/gradle/wrapper
         
         # Copy web app to assets
         cp -r app/* android-project/app/src/main/assets/www/ 2>/dev/null || true
         rm -rf android-project/app/src/main/assets/www/node_modules
+        rm -f android-project/app/src/main/assets/www/package-lock.json
 
-    - name: Generate Android files
+    - name: Generate AndroidManifest.xml
       run: |
-        # AndroidManifest.xml
-        cat > android-project/app/src/main/AndroidManifest.xml << 'MANIFEST'
+        cat > android-project/app/src/main/AndroidManifest.xml << 'EOF'
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
             package="com.stoicgenerator.app">
-            <uses-permission android:name="android.permission.INTERNET"/>
+            
+            <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+            
             <application
                 android:allowBackup="true"
                 android:label="Stoic Generator"
-                android:theme="@android:style/Theme.Material.NoActionBar"
+                android:icon="@drawable/ic_launcher"
+                android:supportsRtl="true"
+                android:theme="@android:style/Theme.Material.Light.NoActionBar"
                 android:usesCleartextTraffic="true">
-                <activity android:name=".MainActivity"
+                
+                <activity
+                    android:name=".MainActivity"
                     android:exported="true"
-                    android:screenOrientation="portrait">
+                    android:configChanges="orientation|screenSize|keyboardHidden"
+                    android:screenOrientation="portrait"
+                    android:windowSoftInputMode="adjustResize">
                     <intent-filter>
-                        <action android:name="android.intent.action.MAIN"/>
-                        <category android:name="android.intent.category.LAUNCHER"/>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
                     </intent-filter>
                 </activity>
+                
             </application>
         </manifest>
-        MANIFEST
+        EOF
 
-        # MainActivity.java
-        cat > android-project/app/src/main/java/com/stoicgenerator/MainActivity.java << 'JAVA'
+    - name: Generate MainActivity.java
+      run: |
+        cat > android-project/app/src/main/java/com/stoicgenerator/MainActivity.java << 'EOF'
         package com.stoicgenerator;
+        
         import android.app.Activity;
         import android.os.Bundle;
-        import android.webkit.WebView;
         import android.webkit.WebSettings;
+        import android.webkit.WebView;
         import android.webkit.WebViewClient;
+        import android.webkit.WebChromeClient;
         import android.view.Window;
         import android.view.WindowManager;
+        import android.view.View;
+        import android.view.ViewGroup;
         import android.graphics.Color;
         import android.os.Build;
+        import android.widget.ProgressBar;
+        import android.widget.RelativeLayout;
+        import android.webkit.ValueCallback;
+        import android.webkit.WebChromeClient;
+        import android.content.Intent;
+        import android.net.Uri;
         
         public class MainActivity extends Activity {
-            WebView webView;
+            private WebView webView;
+            private ProgressBar progressBar;
+            
             @Override
             protected void onCreate(Bundle savedInstanceState) {
                 super.onCreate(savedInstanceState);
+                
+                // Full screen
                 requestWindowFeature(Window.FEATURE_NO_TITLE);
-                getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                getWindow().setFlags(
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN
+                );
+                
+                // Set status bar color for newer Android
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     getWindow().setStatusBarColor(Color.parseColor("#0a0a0f"));
+                    getWindow().setNavigationBarColor(Color.parseColor("#0a0a0f"));
                 }
+                
+                // Create layout
+                RelativeLayout layout = new RelativeLayout(this);
+                layout.setBackgroundColor(Color.parseColor("#0a0a0f"));
+                
+                // Create progress bar
+                progressBar = new ProgressBar(this);
+                progressBar.setVisibility(View.GONE);
+                RelativeLayout.LayoutParams progressParams = new RelativeLayout.LayoutParams(
+                    RelativeLayout.LayoutParams.WRAP_CONTENT,
+                    RelativeLayout.LayoutParams.WRAP_CONTENT
+                );
+                progressParams.addRule(RelativeLayout.CENTER_IN_PARENT);
+                layout.addView(progressBar, progressParams);
+                
+                // Create WebView
                 webView = new WebView(this);
-                setContentView(webView);
-                WebSettings s = webView.getSettings();
-                s.setJavaScriptEnabled(true);
-                s.setDomStorageEnabled(true);
-                s.setAllowFileAccess(true);
-                webView.setWebViewClient(new WebViewClient());
+                RelativeLayout.LayoutParams webParams = new RelativeLayout.LayoutParams(
+                    RelativeLayout.LayoutParams.MATCH_PARENT,
+                    RelativeLayout.LayoutParams.MATCH_PARENT
+                );
+                layout.addView(webView, webParams);
+                
+                setContentView(layout);
+                
+                // Configure WebView
+                WebSettings webSettings = webView.getSettings();
+                webSettings.setJavaScriptEnabled(true);
+                webSettings.setDomStorageEnabled(true);
+                webSettings.setAllowFileAccess(true);
+                webSettings.setAllowContentAccess(true);
+                webSettings.setMediaPlaybackRequiresUserGesture(false);
+                webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
+                webSettings.setUseWideViewPort(true);
+                webSettings.setLoadWithOverviewMode(true);
+                webSettings.setSupportZoom(false);
+                
+                // Enable mixed content for Android 5+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+                }
+                
+                // Set WebViewClient to handle navigation
+                webView.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                        view.loadUrl(url);
+                        return true;
+                    }
+                });
+                
+                // Set WebChromeClient for progress
+                webView.setWebChromeClient(new WebChromeClient() {
+                    @Override
+                    public void onProgressChanged(WebView view, int newProgress) {
+                        if (newProgress < 100) {
+                            progressBar.setVisibility(View.VISIBLE);
+                        } else {
+                            progressBar.setVisibility(View.GONE);
+                        }
+                    }
+                });
+                
+                // Load the local HTML file
                 webView.loadUrl("file:///android_asset/www/index.html");
             }
+            
             @Override
             public void onBackPressed() {
-                if (webView.canGoBack()) webView.goBack();
-                else super.onBackPressed();
+                if (webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    super.onBackPressed();
+                }
             }
+            
             @Override
             protected void onDestroy() {
-                if (webView != null) webView.destroy();
+                if (webView != null) {
+                    webView.destroy();
+                }
                 super.onDestroy();
             }
         }
-        JAVA
+        EOF
 
-        # build.gradle (project)
-        cat > android-project/build.gradle << 'GRADLE'
+    - name: Generate ic_launcher.xml
+      run: |
+        cat > android-project/app/src/main/res/drawable/ic_launcher.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <vector xmlns:android="http://schemas.android.com/apk/res/android"
+            android:width="108dp"
+            android:height="108dp"
+            android:viewportWidth="108"
+            android:viewportHeight="108">
+            <path
+                android:fillColor="#0a0a0f"
+                android:pathData="M0,0h108v108H0z"/>
+            <path
+                android:fillColor="#FFD700"
+                android:pathData="M54,20 L58,30 L68,30 L60,37 L63,47 L54,41 L45,47 L48,37 L40,30 L50,30 Z"/>
+            <path
+                android:fillColor="#FFFFFF"
+                android:pathData="M54,55 L56,60 L61,60 L57,63 L58,68 L54,65 L50,68 L51,63 L47,60 L52,60 Z"/>
+        </vector>
+        EOF
+
+    - name: Generate build.gradle files
+      run: |
+        # Project-level build.gradle
+        cat > android-project/build.gradle << 'EOF'
         buildscript {
             repositories {
                 google()
@@ -144,47 +262,83 @@ jobs:
                 classpath 'com.android.tools.build:gradle:7.4.2'
             }
         }
+        
         allprojects {
             repositories {
                 google()
                 mavenCentral()
             }
         }
-        GRADLE
+        
+        task clean(type: Delete) {
+            delete rootProject.buildDir
+        }
+        EOF
 
-        # app/build.gradle
-        cat > android-project/app/build.gradle << 'APPGRADLE'
+        # App-level build.gradle
+        cat > android-project/app/build.gradle << 'EOF'
         apply plugin: 'com.android.application'
         
         android {
             compileSdkVersion 33
+            
             defaultConfig {
                 applicationId "com.stoicgenerator.app"
                 minSdkVersion 21
                 targetSdkVersion 33
                 versionCode 1
-                versionName "1.0"
+                versionName "1.0.0"
             }
+        
             buildTypes {
                 release {
                     minifyEnabled false
+                    proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
                 }
+                debug {
+                    debuggable true
+                }
+            }
+        
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_1_8
+                targetCompatibility JavaVersion.VERSION_1_8
+            }
+            
+            lintOptions {
+                abortOnError false
             }
         }
         
         dependencies {
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'androidx.webkit:webkit:1.7.0'
+            implementation 'com.google.android.material:material:1.9.0'
         }
-        APPGRADLE
+        EOF
 
-        # gradle.properties
-        cat > android-project/gradle.properties << 'PROPS'
-        android.useAndroidX=false
-        PROPS
+        # proguard-rules.pro
+        cat > android-project/app/proguard-rules.pro << 'EOF'
+        # Add project specific ProGuard rules here.
+        -keepattributes *Annotation*
+        -keepattributes SourceFile,LineNumberTable
+        -keep public class * extends java.lang.Exception
+        EOF
 
-        # settings.gradle
-        cat > android-project/settings.gradle << 'SETTINGS'
+    - name: Generate gradle.properties
+      run: |
+        cat > android-project/gradle.properties << 'EOF'
+        org.gradle.jvmargs=-Xmx2048m
+        android.useAndroidX=true
+        android.enableJetifier=true
+        android.nonTransitiveRClass=true
+        EOF
+
+    - name: Generate settings.gradle
+      run: |
+        cat > android-project/settings.gradle << 'EOF'
         include ':app'
-        SETTINGS
+        EOF
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
@@ -194,7 +348,12 @@ jobs:
     - name: Build Android APK
       run: |
         cd android-project
-        gradle assembleDebug
+        gradle assembleDebug --stacktrace
+
+    - name: Verify APK
+      run: |
+        ls -la android-project/app/build/outputs/apk/debug/
+        unzip -l android-project/app/build/outputs/apk/debug/app-debug.apk | head -30
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
