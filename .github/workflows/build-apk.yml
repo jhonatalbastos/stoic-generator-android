@@ -18,24 +18,6 @@ jobs:
       with:
         node-version: '20'
 
-    - name: Install dependencies
-      run: |
-        cd app
-        npm install
-
-    - name: Create distributable ZIP
-      run: |
-        cd app
-        zip -r ../StoicGenerator-PWA.zip . -x "node_modules/*"
-        echo "PWA package created successfully"
-
-    - name: Upload PWA artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: StoicGenerator-PWA
-        path: StoicGenerator-PWA.zip
-        retention-days: 30
-
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
@@ -49,9 +31,10 @@ jobs:
       run: |
         yes | sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
 
-    - name: Create complete Android project
+    - name: Create Android project structure
       run: |
-        # Create project structure
+        # Clean project directory
+        rm -rf android-project
         mkdir -p android-project/app/src/main/java/com/stoicgenerator
         mkdir -p android-project/app/src/main/res/values
         mkdir -p android-project/app/src/main/res/drawable
@@ -59,9 +42,12 @@ jobs:
         mkdir -p android-project/gradle/wrapper
         
         # Copy web app to assets
-        cp -r app/* android-project/app/src/main/assets/www/ 2>/dev/null || true
+        cp -r app/* android-project/app/src/main/assets/www/
         rm -rf android-project/app/src/main/assets/www/node_modules
         rm -f android-project/app/src/main/assets/www/package-lock.json
+        
+        echo "Project structure created"
+        ls -la android-project/app/src/main/assets/www/
 
     - name: Generate AndroidManifest.xml
       run: |
@@ -72,22 +58,20 @@ jobs:
             
             <uses-permission android:name="android.permission.INTERNET" />
             <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
             
             <application
                 android:allowBackup="true"
                 android:label="Stoic Generator"
                 android:icon="@drawable/ic_launcher"
                 android:supportsRtl="true"
-                android:theme="@android:style/Theme.Material.Light.NoActionBar"
+                android:theme="@android:style/Theme.Material.NoActionBar"
                 android:usesCleartextTraffic="true">
                 
                 <activity
                     android:name=".MainActivity"
                     android:exported="true"
                     android:configChanges="orientation|screenSize|keyboardHidden"
-                    android:screenOrientation="portrait"
-                    android:windowSoftInputMode="adjustResize">
+                    android:screenOrientation="portrait">
                     <intent-filter>
                         <action android:name="android.intent.action.MAIN" />
                         <category android:name="android.intent.category.LAUNCHER" />
@@ -117,10 +101,6 @@ jobs:
         import android.os.Build;
         import android.widget.ProgressBar;
         import android.widget.RelativeLayout;
-        import android.webkit.ValueCallback;
-        import android.webkit.WebChromeClient;
-        import android.content.Intent;
-        import android.net.Uri;
         
         public class MainActivity extends Activity {
             private WebView webView;
@@ -137,7 +117,7 @@ jobs:
                     WindowManager.LayoutParams.FLAG_FULLSCREEN
                 );
                 
-                // Set status bar color for newer Android
+                // Set status bar color
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     getWindow().setStatusBarColor(Color.parseColor("#0a0a0f"));
                     getWindow().setNavigationBarColor(Color.parseColor("#0a0a0f"));
@@ -172,19 +152,16 @@ jobs:
                 webSettings.setJavaScriptEnabled(true);
                 webSettings.setDomStorageEnabled(true);
                 webSettings.setAllowFileAccess(true);
-                webSettings.setAllowContentAccess(true);
-                webSettings.setMediaPlaybackRequiresUserGesture(false);
                 webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
                 webSettings.setUseWideViewPort(true);
                 webSettings.setLoadWithOverviewMode(true);
-                webSettings.setSupportZoom(false);
                 
                 // Enable mixed content for Android 5+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
                 }
                 
-                // Set WebViewClient to handle navigation
+                // Set WebViewClient
                 webView.setWebViewClient(new WebViewClient() {
                     @Override
                     public boolean shouldOverrideUrlLoading(WebView view, String url) {
@@ -269,10 +246,6 @@ jobs:
                 mavenCentral()
             }
         }
-        
-        task clean(type: Delete) {
-            delete rootProject.buildDir
-        }
         EOF
 
         # App-level build.gradle
@@ -304,10 +277,6 @@ jobs:
                 sourceCompatibility JavaVersion.VERSION_1_8
                 targetCompatibility JavaVersion.VERSION_1_8
             }
-            
-            lintOptions {
-                abortOnError false
-            }
         }
         
         dependencies {
@@ -317,21 +286,12 @@ jobs:
         }
         EOF
 
-        # proguard-rules.pro
-        cat > android-project/app/proguard-rules.pro << 'EOF'
-        # Add project specific ProGuard rules here.
-        -keepattributes *Annotation*
-        -keepattributes SourceFile,LineNumberTable
-        -keep public class * extends java.lang.Exception
-        EOF
-
     - name: Generate gradle.properties
       run: |
         cat > android-project/gradle.properties << 'EOF'
         org.gradle.jvmargs=-Xmx2048m
         android.useAndroidX=true
         android.enableJetifier=true
-        android.nonTransitiveRClass=true
         EOF
 
     - name: Generate settings.gradle
@@ -348,16 +308,36 @@ jobs:
     - name: Build Android APK
       run: |
         cd android-project
-        gradle assembleDebug --stacktrace
+        gradle assembleDebug
 
     - name: Verify APK
       run: |
+        echo "=== APK File Info ==="
         ls -la android-project/app/build/outputs/apk/debug/
-        unzip -l android-project/app/build/outputs/apk/debug/app-debug.apk | head -30
+        
+        echo ""
+        echo "=== APK Contents ==="
+        unzip -l android-project/app/build/outputs/apk/debug/app-debug.apk | head -20
+        
+        echo ""
+        echo "=== APK Size ==="
+        du -h android-project/app/build/outputs/apk/debug/app-debug.apk
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
         name: StoicGenerator-APK
         path: android-project/app/build/outputs/apk/debug/app-debug.apk
+        retention-days: 30
+
+    - name: Upload PWA artifact
+      run: |
+        cd app
+        zip -r ../StoicGenerator-PWA.zip . -x "node_modules/*"
+      
+    - name: Upload PWA artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: StoicGenerator-PWA
+        path: StoicGenerator-PWA.zip
         retention-days: 30
