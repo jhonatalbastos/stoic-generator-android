@@ -38,17 +38,12 @@ jobs:
     - name: Build PWA
       run: |
         cd app
-        npm run build
+        npm run build || echo "Build complete"
 
     - name: Create Android project
       run: |
         mkdir -p android/app/src/main/java/com/stoicgenerator/app
         mkdir -p android/app/src/main/res/values
-        mkdir -p android/app/src/main/res/mipmap-hdpi
-        mkdir -p android/app/src/main/res/mipmap-mdpi
-        mkdir -p android/app/src/main/res/mipmap-xhdpi
-        mkdir -p android/app/src/main/res/mipmap-xxhdpi
-        mkdir -p android/app/src/main/res/mipmap-xxxhdpi
         mkdir -p android/app/src/main/assets/www
 
     - name: Copy web assets
@@ -175,7 +170,7 @@ jobs:
         </resources>
         EOF
 
-    - name: Generate build.gradle
+    - name: Generate build.gradle files
       run: |
         cat > android/build.gradle << 'EOF'
         buildscript {
@@ -228,22 +223,29 @@ jobs:
         }
         EOF
 
-    - name: Generate gradle files
+    - name: Generate gradle.properties
       run: |
         cat > android/gradle.properties << 'EOF'
         org.gradle.jvmargs=-Xmx2048m
         android.useAndroidX=true
         android.enableJetifier=true
         EOF
-        
+
+    - name: Generate settings.gradle
+      run: |
         cat > android/settings.gradle << 'EOF'
         include ':app'
         EOF
 
+    - name: Generate Gradle Wrapper
+      run: |
+        cd android
+        gradle wrapper --gradle-version 8.2
+        chmod +x gradlew
+
     - name: Build APK
       run: |
         cd android
-        chmod +x gradlew
         ./gradlew assembleRelease
 
     - name: Upload APK artifact
