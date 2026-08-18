@@ -13,11 +13,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
@@ -27,315 +22,257 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Install Android SDK packages
+    - name: Install SDK packages
       run: |
-        yes | sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+        yes | sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-    - name: Create Android project structure
+    - name: Create project structure
       run: |
-        # Clean project directory
         rm -rf android-project
         mkdir -p android-project/app/src/main/java/com/stoicgenerator
+        mkdir -p android-project/app/src/main/res/layout
         mkdir -p android-project/app/src/main/res/values
-        mkdir -p android-project/app/src/main/res/drawable
+        mkdir -p android-project/app/src/main/res/mipmap-hdpi
+        mkdir -p android-project/app/src/main/res/mipmap-xhdpi
+        mkdir -p android-project/app/src/main/res/mipmap-xxhdpi
         mkdir -p android-project/app/src/main/assets/www
-        mkdir -p android-project/gradle/wrapper
         
-        # Copy web app to assets
+        # Copy web app
         cp -r app/* android-project/app/src/main/assets/www/
         rm -rf android-project/app/src/main/assets/www/node_modules
         rm -f android-project/app/src/main/assets/www/package-lock.json
         
-        echo "Project structure created"
+        echo "=== Web assets copied ==="
         ls -la android-project/app/src/main/assets/www/
 
-    - name: Generate AndroidManifest.xml
+    - name: Create AndroidManifest.xml
       run: |
-        cat > android-project/app/src/main/AndroidManifest.xml << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-            package="com.stoicgenerator.app">
-            
-            <uses-permission android:name="android.permission.INTERNET" />
-            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-            
-            <application
-                android:allowBackup="true"
-                android:label="Stoic Generator"
-                android:icon="@drawable/ic_launcher"
-                android:supportsRtl="true"
-                android:theme="@android:style/Theme.Material.NoActionBar"
-                android:usesCleartextTraffic="true">
-                
-                <activity
-                    android:name=".MainActivity"
-                    android:exported="true"
-                    android:configChanges="orientation|screenSize|keyboardHidden"
-                    android:screenOrientation="portrait">
-                    <intent-filter>
-                        <action android:name="android.intent.action.MAIN" />
-                        <category android:name="android.intent.category.LAUNCHER" />
-                    </intent-filter>
-                </activity>
-                
-            </application>
-        </manifest>
-        EOF
+        cat > android-project/app/src/main/AndroidManifest.xml << 'XMLEOF'
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.stoicgenerator.app">
 
-    - name: Generate MainActivity.java
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:allowBackup="true"
+        android:label="Stoic Generator"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+XMLEOF
+
+    - name: Create MainActivity.java
       run: |
-        cat > android-project/app/src/main/java/com/stoicgenerator/MainActivity.java << 'EOF'
-        package com.stoicgenerator;
+        cat > android-project/app/src/main/java/com/stoicgenerator/MainActivity.java << 'JAVAEOF'
+package com.stoicgenerator;
+
+import android.os.Bundle;
+import android.webkit.WebView;
+import android.webkit.WebSettings;
+import android.webkit.WebViewClient;
+import android.webkit.WebChromeClient;
+import android.view.WindowManager;
+import android.graphics.Color;
+import android.os.Build;
+import androidx.appcompat.app.AppCompatActivity;
+
+public class MainActivity extends AppCompatActivity {
+    private WebView webView;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
         
-        import android.app.Activity;
-        import android.os.Bundle;
-        import android.webkit.WebSettings;
-        import android.webkit.WebView;
-        import android.webkit.WebViewClient;
-        import android.webkit.WebChromeClient;
-        import android.view.Window;
-        import android.view.WindowManager;
-        import android.view.View;
-        import android.view.ViewGroup;
-        import android.graphics.Color;
-        import android.os.Build;
-        import android.widget.ProgressBar;
-        import android.widget.RelativeLayout;
+        // Make fullscreen
+        getWindow().setFlags(
+            WindowManager.LayoutParams.FLAG_FULLSCREEN,
+            WindowManager.LayoutParams.FLAG_FULLSCREEN
+        );
         
-        public class MainActivity extends Activity {
-            private WebView webView;
-            private ProgressBar progressBar;
-            
-            @Override
-            protected void onCreate(Bundle savedInstanceState) {
-                super.onCreate(savedInstanceState);
-                
-                // Full screen
-                requestWindowFeature(Window.FEATURE_NO_TITLE);
-                getWindow().setFlags(
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN
-                );
-                
-                // Set status bar color
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    getWindow().setStatusBarColor(Color.parseColor("#0a0a0f"));
-                    getWindow().setNavigationBarColor(Color.parseColor("#0a0a0f"));
-                }
-                
-                // Create layout
-                RelativeLayout layout = new RelativeLayout(this);
-                layout.setBackgroundColor(Color.parseColor("#0a0a0f"));
-                
-                // Create progress bar
-                progressBar = new ProgressBar(this);
-                progressBar.setVisibility(View.GONE);
-                RelativeLayout.LayoutParams progressParams = new RelativeLayout.LayoutParams(
-                    RelativeLayout.LayoutParams.WRAP_CONTENT,
-                    RelativeLayout.LayoutParams.WRAP_CONTENT
-                );
-                progressParams.addRule(RelativeLayout.CENTER_IN_PARENT);
-                layout.addView(progressBar, progressParams);
-                
-                // Create WebView
-                webView = new WebView(this);
-                RelativeLayout.LayoutParams webParams = new RelativeLayout.LayoutParams(
-                    RelativeLayout.LayoutParams.MATCH_PARENT,
-                    RelativeLayout.LayoutParams.MATCH_PARENT
-                );
-                layout.addView(webView, webParams);
-                
-                setContentView(layout);
-                
-                // Configure WebView
-                WebSettings webSettings = webView.getSettings();
-                webSettings.setJavaScriptEnabled(true);
-                webSettings.setDomStorageEnabled(true);
-                webSettings.setAllowFileAccess(true);
-                webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
-                webSettings.setUseWideViewPort(true);
-                webSettings.setLoadWithOverviewMode(true);
-                
-                // Enable mixed content for Android 5+
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-                }
-                
-                // Set WebViewClient
-                webView.setWebViewClient(new WebViewClient() {
-                    @Override
-                    public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                        view.loadUrl(url);
-                        return true;
-                    }
-                });
-                
-                // Set WebChromeClient for progress
-                webView.setWebChromeClient(new WebChromeClient() {
-                    @Override
-                    public void onProgressChanged(WebView view, int newProgress) {
-                        if (newProgress < 100) {
-                            progressBar.setVisibility(View.VISIBLE);
-                        } else {
-                            progressBar.setVisibility(View.GONE);
-                        }
-                    }
-                });
-                
-                // Load the local HTML file
-                webView.loadUrl("file:///android_asset/www/index.html");
-            }
-            
-            @Override
-            public void onBackPressed() {
-                if (webView.canGoBack()) {
-                    webView.goBack();
-                } else {
-                    super.onBackPressed();
-                }
-            }
-            
-            @Override
-            protected void onDestroy() {
-                if (webView != null) {
-                    webView.destroy();
-                }
-                super.onDestroy();
-            }
-        }
-        EOF
-
-    - name: Generate ic_launcher.xml
-      run: |
-        cat > android-project/app/src/main/res/drawable/ic_launcher.xml << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <vector xmlns:android="http://schemas.android.com/apk/res/android"
-            android:width="108dp"
-            android:height="108dp"
-            android:viewportWidth="108"
-            android:viewportHeight="108">
-            <path
-                android:fillColor="#0a0a0f"
-                android:pathData="M0,0h108v108H0z"/>
-            <path
-                android:fillColor="#FFD700"
-                android:pathData="M54,20 L58,30 L68,30 L60,37 L63,47 L54,41 L45,47 L48,37 L40,30 L50,30 Z"/>
-            <path
-                android:fillColor="#FFFFFF"
-                android:pathData="M54,55 L56,60 L61,60 L57,63 L58,68 L54,65 L50,68 L51,63 L47,60 L52,60 Z"/>
-        </vector>
-        EOF
-
-    - name: Generate build.gradle files
-      run: |
-        # Project-level build.gradle
-        cat > android-project/build.gradle << 'EOF'
-        buildscript {
-            repositories {
-                google()
-                mavenCentral()
-            }
-            dependencies {
-                classpath 'com.android.tools.build:gradle:7.4.2'
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().setStatusBarColor(Color.parseColor("#0a0a0f"));
+            getWindow().setNavigationBarColor(Color.parseColor("#0a0a0f"));
         }
         
-        allprojects {
-            repositories {
-                google()
-                mavenCentral()
-            }
-        }
-        EOF
+        // Create WebView directly
+        webView = new WebView(this);
+        setContentView(webView);
+        
+        // Configure
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(true);
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        
+        webView.setWebViewClient(new WebViewClient());
+        webView.setWebChromeClient(new WebChromeClient());
+        webView.setBackgroundColor(Color.parseColor("#0a0a0f"));
+        
+        webView.loadUrl("file:///android_asset/www/index.html");
+    }
 
-        # App-level build.gradle
-        cat > android-project/app/build.gradle << 'EOF'
-        apply plugin: 'com.android.application'
-        
-        android {
-            compileSdkVersion 33
-            
-            defaultConfig {
-                applicationId "com.stoicgenerator.app"
-                minSdkVersion 21
-                targetSdkVersion 33
-                versionCode 1
-                versionName "1.0.0"
-            }
-        
-            buildTypes {
-                release {
-                    minifyEnabled false
-                    proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-                }
-                debug {
-                    debuggable true
-                }
-            }
-        
-            compileOptions {
-                sourceCompatibility JavaVersion.VERSION_1_8
-                targetCompatibility JavaVersion.VERSION_1_8
-            }
+    @Override
+    public void onBackPressed() {
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+        } else {
+            super.onBackPressed();
         }
-        
-        dependencies {
-            implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'androidx.webkit:webkit:1.7.0'
-            implementation 'com.google.android.material:material:1.9.0'
-        }
-        EOF
+    }
+}
+JAVAEOF
 
-    - name: Generate gradle.properties
+    - name: Create res/values/styles.xml
       run: |
-        cat > android-project/gradle.properties << 'EOF'
-        org.gradle.jvmargs=-Xmx2048m
-        android.useAndroidX=true
-        android.enableJetifier=true
-        EOF
+        cat > android-project/app/src/main/res/values/styles.xml << 'STYLESEOF'
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowBackground">#0a0a0f</item>
+    </style>
+</resources>
+STYLESEOF
 
-    - name: Generate settings.gradle
+    - name: Create res/values/colors.xml
       run: |
-        cat > android-project/settings.gradle << 'EOF'
-        include ':app'
-        EOF
+        cat > android-project/app/src/main/res/values/colors.xml << 'COLORSEOF'
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#0a0a0f</color>
+    <color name="gold">#FFD700</color>
+</resources>
+COLORSEOF
+
+    - name: Create project build.gradle
+      run: |
+        cat > android-project/build.gradle << 'GRADLEEOF'
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.2.0'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+GRADLEEOF
+
+    - name: Create app build.gradle
+      run: |
+        cat > android-project/app/build.gradle << 'APPEOF'
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.stoicgenerator.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.stoicgenerator.app"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+}
+APPEOF
+
+    - name: Create gradle.properties
+      run: |
+        cat > android-project/gradle.properties << 'PROPEOF'
+android.useAndroidX=true
+android.nonTransitiveRClass=true
+PROPEOF
+
+    - name: Create settings.gradle
+      run: |
+        cat > android-project/settings.gradle << 'SETEOF'
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = "StoicGenerator"
+include ':app'
+SETEOF
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
       with:
-        gradle-version: '7.6.3'
+        gradle-version: '8.4'
 
-    - name: Build Android APK
+    - name: Build APK
       run: |
         cd android-project
         gradle assembleDebug
 
     - name: Verify APK
       run: |
-        echo "=== APK File Info ==="
-        ls -la android-project/app/build/outputs/apk/debug/
-        
+        echo "=== APK Size ==="
+        ls -lh android-project/app/build/outputs/apk/debug/app-debug.apk
         echo ""
         echo "=== APK Contents ==="
         unzip -l android-project/app/build/outputs/apk/debug/app-debug.apk | head -20
-        
-        echo ""
-        echo "=== APK Size ==="
-        du -h android-project/app/build/outputs/apk/debug/app-debug.apk
 
-    - name: Upload APK artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: StoicGenerator-APK
         path: android-project/app/build/outputs/apk/debug/app-debug.apk
         retention-days: 30
 
-    - name: Upload PWA artifact
+    - name: Create PWA zip
       run: |
         cd app
         zip -r ../StoicGenerator-PWA.zip . -x "node_modules/*"
-      
-    - name: Upload PWA artifact
+
+    - name: Upload PWA
       uses: actions/upload-artifact@v4
       with:
         name: StoicGenerator-PWA
