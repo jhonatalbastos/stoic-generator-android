@@ -194,11 +194,11 @@ jobs:
     - name: Build Android APK
       run: |
         cd android-project
-        gradle assembleRelease
+        gradle assembleDebug
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
         name: StoicGenerator-APK
-        path: android-project/app/build/outputs/apk/release/app-release-unsigned.apk
+        path: android-project/app/build/outputs/apk/debug/app-debug.apk
         retention-days: 30
