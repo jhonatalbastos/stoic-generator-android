@@ -26,9 +26,7 @@ jobs:
           rm -rf StoicApp/app/src/main/assets/www/node_modules
 
       - name: Write settings.gradle
-        uses: geekyeggo/delete-artifact@v5
-        continue-on-error: true
-      - run: |
+        run: |
           cat > StoicApp/settings.gradle << 'GRADLE'
           pluginManagement {
             repositories {
