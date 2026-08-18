@@ -17,7 +17,7 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      - name: Setup project
+      - name: Create project
         run: |
           mkdir -p StoicApp/app/src/main/java/com/stoic
           mkdir -p StoicApp/app/src/main/assets/www
@@ -25,9 +25,9 @@ jobs:
           cp -r app/* StoicApp/app/src/main/assets/www/
           rm -rf StoicApp/app/src/main/assets/www/node_modules
 
-      - name: Write settings.gradle
+      - name: Generate Gradle files
         run: |
-          cat > StoicApp/settings.gradle << 'GRADLE'
+          cat > StoicApp/settings.gradle << 'EOF'
           pluginManagement {
             repositories {
               google()
@@ -35,22 +35,26 @@ jobs:
               gradlePluginPortal()
             }
           }
+          dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+            repositories {
+              google()
+              mavenCentral()
+            }
+          }
           rootProject.name = "StoicApp"
           include ':app'
-          GRADLE
+          EOF
 
-      - run: |
-          cat > StoicApp/build.gradle << 'GRADLE'
+          cat > StoicApp/build.gradle << 'EOF'
           plugins {
             id 'com.android.application' version '8.2.0' apply false
           }
-          GRADLE
+          EOF
 
-      - run: |
           echo "android.useAndroidX=true" > StoicApp/gradle.properties
 
-      - run: |
-          cat > StoicApp/app/build.gradle << 'GRADLE'
+          cat > StoicApp/app/build.gradle << 'EOF'
           plugins {
             id 'com.android.application'
           }
@@ -72,10 +76,11 @@ jobs:
           dependencies {
             implementation 'androidx.appcompat:appcompat:1.6.1'
           }
-          GRADLE
+          EOF
 
-      - run: |
-          cat > StoicApp/app/src/main/AndroidManifest.xml << 'XML'
+      - name: Generate Android files
+        run: |
+          cat > StoicApp/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.INTERNET"/>
@@ -88,10 +93,9 @@ jobs:
               </activity>
             </application>
           </manifest>
-          XML
+          EOF
 
-      - run: |
-          cat > StoicApp/app/src/main/java/com/stoic/MainActivity.java << 'JAVA'
+          cat > StoicApp/app/src/main/java/com/stoic/MainActivity.java << 'EOF'
           package com.stoic;
           import android.os.Bundle;
           import android.webkit.WebView;
@@ -118,15 +122,14 @@ jobs:
             }
             public void onBackPressed(){if(w!=null&&w.canGoBack())w.goBack();else super.onBackPressed();}
           }
-          JAVA
+          EOF
 
-      - run: |
-          cat > StoicApp/app/src/main/res/values/styles.xml << 'XML'
+          cat > StoicApp/app/src/main/res/values/styles.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
             <style name="Theme.AppCompat.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar"/>
           </resources>
-          XML
+          EOF
 
       - uses: gradle/actions/setup-gradle@v3
         with:
