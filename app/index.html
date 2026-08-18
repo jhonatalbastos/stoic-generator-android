@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0a0a0f">
+    <meta name="description" content="Stoic Video Generator - Gere vídeos estoicos virais para TikTok/Reels">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <title>Stoic Generator</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/styles.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">🏛️ STOIC GENERATOR</h1>
+                <p class="tagline">1 tópico → 1 clique → 1 vídeo estoico viral</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Telegram Status -->
+            <div class="telegram-status">
+                <div class="status-dot"></div>
+                <span>Telegram conectado</span>
+            </div>
+
+            <!-- Topic Input Section -->
+            <section class="section">
+                <h2 class="section-title">📝 TÓPICO DO VÍDEO</h2>
+                
+                <div class="input-group">
+                    <textarea 
+                        id="topic-input" 
+                        class="topic-input" 
+                        placeholder="Ex: A verdade sobre a disciplina que ninguém te conta"
+                        rows="3"
+                    ></textarea>
+                </div>
+
+                <div class="preset-label">Ou escolha um tópico viral:</div>
+                
+                <div class="preset-grid">
+                    <button class="preset-btn" data-topic="A verdade sobre a disciplina">🔥 A verdade sobre a disciplina</button>
+                    <button class="preset-btn" data-topic="Pare de fazer isso se quer mudar">💀 Pare de fazer isso se quer mudar</button>
+                    <button class="preset-btn" data-topic="O poder do silêncio">🤫 O poder do silêncio</button>
+                    <button class="preset-btn" data-topic="Hábitos de pessoas disciplinadas">💪 Hábitos de pessoas disciplinadas</button>
+                    <button class="preset-btn" data-topic="Como pensar como um guerreiro">⚔️ Como pensar como um guerreiro</button>
+                    <button class="preset-btn" data-topic="A armadilha do conforto">🪤 A armadilha do conforto</button>
+                    <button class="preset-btn" data-topic="Domine sua atenção ou será dominado">🧠 Domine sua atenção ou será dominado</button>
+                    <button class="preset-btn" data-topic="A solidão fortalece">🌙 A solidão fortalece</button>
+                </div>
+            </section>
+
+            <!-- Settings Section -->
+            <section class="section">
+                <h2 class="section-title">⚙️ CONFIGURAÇÕES PRÉ-DEFINIDAS</h2>
+                
+                <div class="settings-grid">
+                    <div class="setting-item">
+                        <div class="setting-label">📐 Proporção</div>
+                        <div class="setting-value">9:16 (TikTok/Reels)</div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">✂️ Cortes</div>
+                        <div class="setting-value">A cada 2 segundos</div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">🎤 Voz</div>
+                        <div class="setting-value">PT-BR Antonio (Grave)</div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">⚡ Velocidade</div>
+                        <div class="setting-value">0.9x (Pausado)</div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">🎵 Música</div>
+                        <div class="setting-value">Automática (sutil)</div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">💬 Legendas</div>
+                        <div class="setting-value">Douradas no centro</div>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <strong>🎨 Estilo Visual:</strong> Dark moody, cinematográfico, estátuas estoicas, chuva, academia, noite, reflexão profunda
+                </div>
+            </section>
+
+            <!-- API Keys Section -->
+            <section class="section">
+                <h2 class="section-title">🔑 CONFIGURAÇÕES DE API</h2>
+                
+                <button class="toggle-btn" id="toggle-api-keys">
+                    ⚙️ Configurar Chaves de API
+                </button>
+                
+                <div class="api-keys-form" id="api-keys-form" style="display: none;">
+                    <div class="info-box">
+                        <strong>ℹ️ Informação:</strong> As chaves são salvas localmente no navegador. Nenhuma informação é enviada para servidores externos.
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="groq-key">🔑 Groq API Key</label>
+                        <input type="password" id="groq-key" class="form-input" placeholder="Chave para geração de roteiros com IA">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="pexels-key">🖼️ Pexels API Key</label>
+                        <input type="password" id="pexels-key" class="form-input" placeholder="Chave para buscar imagens e vídeos">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="telegram-token">📱 Telegram Bot Token</label>
+                        <input type="password" id="telegram-token" class="form-input" placeholder="Token do bot Telegram para envio de vídeos">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="telegram-chat-id">💬 Telegram Chat ID</label>
+                        <input type="password" id="telegram-chat-id" class="form-input" placeholder="ID do chat para receber os vídeos">
+                    </div>
+                    
+                    <button class="save-btn" id="save-api-keys">
+                        💾 Salvar Configurações
+                    </button>
+                    
+                    <div class="api-status">
+                        <div class="status-item">
+                            <div class="status-dot green"></div>
+                            <span>Groq</span>
+                        </div>
+                        <div class="status-item">
+                            <div class="status-dot green"></div>
+                            <span>Pexels</span>
+                        </div>
+                        <div class="status-item">
+                            <div class="status-dot green"></div>
+                            <span>Telegram</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Generate Button -->
+            <section class="section">
+                <button class="generate-btn" id="generate-btn">
+                    🎬 GERAR MEU VÍDEO ESTOICO
+                </button>
+            </section>
+
+            <!-- Status Section -->
+            <section class="section" id="status-section" style="display: none;">
+                <div class="status-box" id="status-box">
+                    <div class="status-icon" id="status-icon">⏳</div>
+                    <h3 id="status-title">Gerando seu vídeo estoico...</h3>
+                    <p id="status-message">Isso leva 5-10 minutos. Enviamos para o Telegram quando pronto.</p>
+                </div>
+                
+                <div class="progress-log" id="progress-log" style="display: none;">
+                    <h4>📋 Acompanhar progresso</h4>
+                    <div class="log-content" id="log-content"></div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>🏛️ Stoic Video Generator - Desenvolvimento Pessoal & Estoicismo</p>
+            <p>Vídeos gerados automaticamente e enviados via Telegram</p>
+        </footer>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="js/app.js"></script>
+</body>
+</html>

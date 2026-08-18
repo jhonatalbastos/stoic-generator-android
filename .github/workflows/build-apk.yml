@@ -1,0 +1,308 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Install dependencies
+      run: |
+        cd app
+        npm install
+
+    - name: Build PWA
+      run: |
+        cd app
+        npm run build
+
+    - name: Create Android project
+      run: |
+        # Create Android project structure
+        mkdir -p android/app/src/main/java/com/stoicgenerator/app
+        mkdir -p android/app/src/main/res/values
+        mkdir -p android/app/src/main/res/mipmap-hdpi
+        mkdir -p android/app/src/main/res/mipmap-mdpi
+        mkdir -p android/app/src/main/res/mipmap-xhdpi
+        mkdir -p android/app/src/main/res/mipmap-xxhdpi
+        mkdir -p android/app/src/main/res/mipmap-xxxhdpi
+        mkdir -p android/app/src/main/assets/www
+
+    - name: Copy web assets
+      run: |
+        # Copy built web app to Android assets
+        cp -r app/dist/* android/app/src/main/assets/www/
+
+    - name: Generate AndroidManifest.xml
+      run: |
+        cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.stoicgenerator.app">
+            
+            <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+            
+            <application
+                android:allowBackup="true"
+                android:icon="@mipmap/ic_launcher"
+                android:label="Stoic Generator"
+                android:supportsRtl="true"
+                android:theme="@style/AppTheme"
+                android:usesCleartextTraffic="true">
+                
+                <activity
+                    android:name=".MainActivity"
+                    android:exported="true"
+                    android:configChanges="orientation|screenSize|keyboardHidden"
+                    android:screenOrientation="portrait">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+                
+            </application>
+        </manifest>
+        EOF
+
+    - name: Generate MainActivity.java
+      run: |
+        cat > android/app/src/main/java/com/stoicgenerator/app/MainActivity.java << 'EOF'
+        package com.stoicgenerator.app;
+        
+        import android.os.Bundle;
+        import android.webkit.WebSettings;
+        import android.webkit.WebView;
+        import android.webkit.WebViewClient;
+        import android.webkit.WebChromeClient;
+        import android.view.View;
+        import android.view.Window;
+        import android.view.WindowManager;
+        import android.graphics.Color;
+        import android.os.Build;
+        
+        public class MainActivity extends android.app.Activity {
+            private WebView webView;
+            
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                
+                // Full screen
+                requestWindowFeature(Window.FEATURE_NO_TITLE);
+                getWindow().setFlags(
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN
+                );
+                
+                // Set status bar color
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    getWindow().setStatusBarColor(Color.parseColor("#0a0a0f"));
+                    getWindow().setNavigationBarColor(Color.parseColor("#0a0a0f"));
+                }
+                
+                // Create WebView
+                webView = new WebView(this);
+                setContentView(webView);
+                
+                // Configure WebView
+                WebSettings webSettings = webView.getSettings();
+                webSettings.setJavaScriptEnabled(true);
+                webSettings.setDomStorageEnabled(true);
+                webSettings.setAllowFileAccess(true);
+                webSettings.setAllowContentAccess(true);
+                webSettings.setMediaPlaybackRequiresUserGesture(false);
+                webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
+                
+                // Enable mixed content (HTTP + HTTPS)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+                }
+                
+                // Set WebViewClient to handle navigation
+                webView.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                        view.loadUrl(url);
+                        return true;
+                    }
+                });
+                
+                // Set WebChromeClient for console logs
+                webView.setWebChromeClient(new WebChromeClient());
+                
+                // Load the local HTML file
+                webView.loadUrl("file:///android_asset/www/index.html");
+            }
+            
+            @Override
+            public void onBackPressed() {
+                if (webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    super.onBackPressed();
+                }
+            }
+            
+            @Override
+            protected void onDestroy() {
+                if (webView != null) {
+                    webView.destroy();
+                }
+                super.onDestroy();
+            }
+        }
+        EOF
+
+    - name: Generate styles.xml
+      run: |
+        cat > android/app/src/main/res/values/styles.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <style name="AppTheme" parent="android:Theme.Material.NoActionBar">
+                <item name="android:colorPrimary">#FFD700</item>
+                <item name="android:colorPrimaryDark">#0a0a0f</item>
+                <item name="android:colorAccent">#FFA500</item>
+                <item name="android:windowBackground">#0a0a0f</item>
+                <item name="android:statusBarColor">#0a0a0f</item>
+                <item name="android:navigationBarColor">#0a0a0f</item>
+            </style>
+        </resources>
+        EOF
+
+    - name: Generate colors.xml
+      run: |
+        cat > android/app/src/main/res/values/colors.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <color name="gold">#FFD700</color>
+            <color name="gold_dark">#FFA500</color>
+            <color name="bg_primary">#0a0a0f</color>
+            <color name="bg_secondary">#1a1a2e</color>
+            <color name="bg_tertiary">#16213e</color>
+            <color name="text_primary">#ffffff</color>
+            <color name="text_secondary">#888888</color>
+        </resources>
+        EOF
+
+    - name: Generate build.gradle
+      run: |
+        cat > android/build.gradle << 'EOF'
+        buildscript {
+            repositories {
+                google()
+                mavenCentral()
+            }
+            dependencies {
+                classpath 'com.android.tools.build:gradle:8.1.0'
+            }
+        }
+        
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        
+        task clean(type: Delete) {
+            delete rootProject.buildDir
+        }
+        EOF
+        
+        cat > android/app/build.gradle << 'EOF'
+        apply plugin: 'com.android.application'
+        
+        android {
+            compileSdkVersion 34
+            
+            defaultConfig {
+                applicationId "com.stoicgenerator.app"
+                minSdkVersion 21
+                targetSdkVersion 34
+                versionCode 1
+                versionName "1.0"
+            }
+        
+            buildTypes {
+                release {
+                    minifyEnabled false
+                    proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+                }
+            }
+        
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_1_8
+                targetCompatibility JavaVersion.VERSION_1_8
+            }
+        }
+        
+        dependencies {
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'com.google.android.material:material:1.10.0'
+        }
+        EOF
+
+    - name: Generate gradle.properties
+      run: |
+        cat > android/gradle.properties << 'EOF'
+        org.gradle.jvmargs=-Xmx2048m
+        android.useAndroidX=true
+        android.enableJetifier=true
+        EOF
+
+    - name: Generate settings.gradle
+      run: |
+        cat > android/settings.gradle << 'EOF'
+        include ':app'
+        EOF
+
+    - name: Build APK
+      run: |
+        cd android
+        chmod +x gradlew
+        ./gradlew assembleRelease
+
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: StoicGenerator-APK
+        path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+        retention-days: 30
+
+    - name: Create release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: android/app/build/outputs/apk/release/app-release-unsigned.apk
+        tag_name: v${{ github.run_number }}
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

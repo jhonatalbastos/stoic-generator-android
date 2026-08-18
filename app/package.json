@@ -1,0 +1,23 @@
+{
+  "name": "stoic-generator-web",
+  "version": "1.0.0",
+  "description": "Stoic Video Generator - Web Interface",
+  "main": "index.html",
+  "scripts": {
+    "start": "serve -s .",
+    "build": "echo 'Build complete'",
+    "test": "echo 'No tests yet'"
+  },
+  "keywords": [
+    "stoic",
+    "video-generator",
+    "tiktok",
+    "reels",
+    "pwa"
+  ],
+  "author": "Stoic Generator Team",
+  "license": "MIT",
+  "dependencies": {
+    "serve": "^14.2.0"
+  }
+}
